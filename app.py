@@ -3,13 +3,19 @@
 import os
 from flask import Flask, jsonify
 import sqlalchemy
-
+import time
 # web app
 app = Flask(__name__)
 
 # database engine
 engine = sqlalchemy.create_engine(os.getenv('SQL_URI'))
 
+#Controls RATE_NUM requests per RATE_TIME
+#ex. RATE_TIME = 60 and RATE_NUM = 2
+#    results in 2 requests every 60 seconds limit
+RATE_TIME = 60
+RATE_NUM = 2
+REQUEST_HISTORY = []
 
 @app.route('/')
 def index():
@@ -69,5 +75,20 @@ def poi():
 
 def queryHelper(query):
     with engine.connect() as conn:
-        result = conn.execute(query).fetchall()
-        return jsonify([dict(row.items()) for row in result])
+        if rateLimitCheck():
+            result = conn.execute(query).fetchall()
+            return jsonify([dict(row.items()) for row in result])
+        else:
+            return "You are doing that too often"
+def rateLimitCheck():
+    rateFlag = False
+    currTime = int(time.time())
+    #clear stack
+    while len(REQUEST_HISTORY) > 0  and currTime - REQUEST_HISTORY[0] > RATE_TIME:
+        REQUEST_HISTORY.pop(0)
+    if len(REQUEST_HISTORY) < RATE_NUM:
+        rateFlag = True
+        REQUEST_HISTORY.append(currTime)
+
+    return rateFlag
+      
