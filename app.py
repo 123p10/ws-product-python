@@ -4,18 +4,15 @@ import os
 from flask import Flask, jsonify
 import sqlalchemy
 import time
+from rate_limit import RateLimit, RateLimitManager
 # web app
 app = Flask(__name__)
 
 # database engine
 engine = sqlalchemy.create_engine(os.getenv('SQL_URI'))
 
-#Controls RATE_NUM requests per RATE_TIME
-#ex. RATE_TIME = 60 and RATE_NUM = 2
-#    results in 2 requests every 60 seconds limit
-RATE_TIME = 60
-RATE_NUM = 2
-REQUEST_HISTORY = []
+#instantiate rate limit manager
+rateManager = RateLimitManager()
 
 @app.route('/')
 def index():
@@ -23,6 +20,7 @@ def index():
 
 
 @app.route('/events/hourly')
+@rateManager.limit(rateNum=2,rateTime=60)
 def events_hourly():
     return queryHelper('''
         SELECT date, hour, events
@@ -33,6 +31,7 @@ def events_hourly():
 
 
 @app.route('/events/daily')
+@rateManager.limit(rateNum=2,rateTime=60)
 def events_daily():
     return queryHelper('''
         SELECT date, SUM(events) AS events
@@ -44,6 +43,7 @@ def events_daily():
 
 
 @app.route('/stats/hourly')
+@rateManager.limit(rateNum=2,rateTime=120)
 def stats_hourly():
     return queryHelper('''
         SELECT date, hour, impressions, clicks, revenue
@@ -54,6 +54,7 @@ def stats_hourly():
 
 
 @app.route('/stats/daily')
+@rateManager.limit(rateNum=1,rateTime=10)
 def stats_daily():
     return queryHelper('''
         SELECT date,
@@ -67,6 +68,7 @@ def stats_daily():
     ''')
 
 @app.route('/poi')
+@rateManager.limit(rateNum=-1,rateTime=-1)
 def poi():
     return queryHelper('''
         SELECT *
@@ -75,20 +77,5 @@ def poi():
 
 def queryHelper(query):
     with engine.connect() as conn:
-        if rateLimitCheck():
-            result = conn.execute(query).fetchall()
-            return jsonify([dict(row.items()) for row in result])
-        else:
-            return "You are doing that too often"
-def rateLimitCheck():
-    rateFlag = False
-    currTime = int(time.time())
-    #clear stack
-    while len(REQUEST_HISTORY) > 0  and currTime - REQUEST_HISTORY[0] > RATE_TIME:
-        REQUEST_HISTORY.pop(0)
-    if len(REQUEST_HISTORY) < RATE_NUM:
-        rateFlag = True
-        REQUEST_HISTORY.append(currTime)
-
-    return rateFlag
-      
+        result = conn.execute(query).fetchall()
+        return jsonify([dict(row.items()) for row in result])
