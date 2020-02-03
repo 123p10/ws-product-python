@@ -68,7 +68,6 @@ def stats_daily():
     ''')
 
 @app.route('/poi')
-@rateManager.limit(rateNum=-1,rateTime=-1)
 def poi():
     return queryHelper('''
         SELECT *

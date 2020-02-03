@@ -1,13 +1,28 @@
 import time
 from functools import wraps
+
+'''
+Usage:
+At the start you must first instantiate your rate limiter
+ex. rateLimitManger = RateLimitManager
+
+Then simply add a rate limit decorator to each API endpoint under the route
+ex. 
+    @app.route("abc")
+    @rateLimitManager.limit(rateNum=7,rateTime=60*15)
+    func endpoint():
+        ...function body ...
+
+'''
 class RateLimit:
     def __init__(self, name = "", rateNum=0,rateTime=0):
         self.name = name
         self.rateNum = rateNum
         self.rateTime = rateTime
         self.requestHistory = []
+
     def rateLimitCheck(self):
-        if self.rateTime != -1 and self.rateNum != -1:
+        if self.rateTime > 0 and self.rateNum > 0:
             rateFlag = False
             currTime = int(time.time())
             #clear stack
@@ -22,8 +37,10 @@ class RateLimit:
 class RateLimitManager:
     def __init__(self):
         self.rateLimits = {}
-    #rateNum is the number of requests per some rateTime
-    #rateTime corresponds to the number of seconds interval
+    
+    #rateNum is the number of requests per some rateTime interval
+    #rateTime corresponds to the number of seconds per interval
+    #ex. rateNum = 2, rateTime = 60 means 2 requests per second maximum
     def limit(self,rateNum, rateTime):
         def wrap(f):
             def wrapped_f(*args):
